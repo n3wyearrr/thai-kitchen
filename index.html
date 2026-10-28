@@ -1,0 +1,294 @@
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thai Kitchen | ร้านอาหารไทย</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Kanit", sans-serif;
+      color: #30251e;
+      background: #fffaf3;
+    }
+
+    header {
+      padding: 20px 7%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      box-shadow: 0 3px 15px #0000000b;
+    }
+
+    .logo {
+      font-size: 25px;
+      font-weight: 700;
+      color: #c65324;
+    }
+
+    .logo span { color: #30251e; }
+
+    nav a {
+      margin-left: 25px;
+      color: #49372b;
+      text-decoration: none;
+    }
+
+    .hero {
+      padding: 55px 7%;
+      background: #f5e5d1;
+      text-align: center;
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: clamp(32px, 5vw, 48px);
+    }
+
+    .hero p { color: #715c4d; }
+
+    main {
+      max-width: 1250px;
+      margin: auto;
+      padding: 45px 25px 60px;
+    }
+
+    .heading { text-align: center; }
+
+    .heading h2 { font-size: 32px; margin-bottom: 5px; }
+
+    .heading p { color: #806f61; }
+
+    .search-box {
+      max-width: 600px;
+      margin: 25px auto 35px;
+    }
+
+    #searchInput {
+      width: 100%;
+      padding: 15px 18px;
+      border: 1px solid #e5d6c7;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 16px;
+      outline: none;
+      background: white;
+    }
+
+    #searchInput:focus { border-color: #c65324; }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 25px;
+    }
+
+    .card {
+      overflow: hidden;
+      background: white;
+      border-radius: 18px;
+      border: 1px solid #eee3d8;
+      box-shadow: 0 6px 22px #53331a0b;
+      transition: transform .2s, box-shadow .2s;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 28px #53331a18;
+    }
+
+    .food-link {
+      display: block;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .food-link::after {
+      content: "คลิกเพื่อดูรายละเอียด ↗";
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 12px;
+      color: white;
+      text-align: center;
+      background: linear-gradient(transparent, #000a);
+      opacity: 0;
+      transition: opacity .2s;
+    }
+
+    .food-link:hover::after { opacity: 1; }
+
+    .food-image {
+      display: block;
+      width: 100%;
+      height: 230px;
+      object-fit: cover;
+      transition: transform .3s;
+      background: #f2e5d8;
+    }
+
+    .food-link:hover .food-image { transform: scale(1.04); }
+
+    .card-body { padding: 18px; }
+
+    .category {
+      display: inline-block;
+      padding: 4px 10px;
+      color: #b24d23;
+      background: #fff0e3;
+      border-radius: 20px;
+      font-size: 12px;
+    }
+
+    .card h3 { margin: 10px 0 5px; font-size: 20px; }
+
+    .card p {
+      margin: 0 0 12px;
+      color: #806f61;
+      font-size: 14px;
+    }
+
+    .price { color: #c65324; font-size: 22px; font-weight: 600; }
+
+    #emptyMessage {
+      text-align: center;
+      color: #806f61;
+      padding: 30px;
+    }
+
+    footer {
+      padding: 25px;
+      text-align: center;
+      color: white;
+      background: #214d3d;
+    }
+
+    @media (max-width: 800px) {
+      .menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      header { padding: 18px 5%; }
+      .food-image { height: 190px; }
+    }
+
+    @media (max-width: 520px) {
+      nav { display: none; }
+      main { padding: 30px 16px 40px; }
+      .menu-grid { grid-template-columns: 1fr; }
+      .food-image { height: 230px; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="logo">🍲 Thai<span>Kitchen</span></div>
+    <nav>
+      <a href="index.html">หน้าแรก</a>
+      <a href="#menu">เมนูอาหาร</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <h1>อร่อยแบบไทย ใส่ใจทุกจาน</h1>
+    <p>อาหารไทยรสชาติต้นตำรับ ปรุงสดใหม่ด้วยใจ</p>
+  </section>
+
+  <main id="menu">
+    <div class="heading">
+      <h2>เมนูแนะนำ</h2>
+      <p>คลิกที่รูปภาพเพื่อดูรายละเอียดอาหาร</p>
+    </div>
+
+    <div class="search-box">
+      <input id="searchInput" type="search"
+             placeholder="🔍 ค้นหาชื่ออาหาร..."
+             autocomplete="off">
+    </div>
+
+    <div id="menuGrid" class="menu-grid"></div>
+    <div id="emptyMessage" hidden>ไม่พบเมนูอาหารที่ค้นหา</div>
+  </main>
+
+  <footer>
+    <p>🍲 Thai Kitchen | © 2026</p>
+  </footer>
+
+  <script>
+    const menus = [
+      {
+        id: 1,
+        name: "ผัดไทยกุ้งสด",
+        category: "อาหารจานเดียว",
+        price: 89,
+        desc: "ผัดไทยเส้นเหนียวนุ่ม หอมซอสมะขาม พร้อมกุ้งสด",
+        image: "https://images.unsplash.com/photo-1559314809-0d155014e29e?auto=format&fit=crop&w=900&q=80"
+      },
+      {
+        id: 2,
+        name: "ข้าวกะเพราไก่ไข่ดาว",
+        category: "อาหารจานเดียว",
+        price: 75,
+        desc: "ไก่ผัดกะเพราหอมกระทะ เสิร์ฟพร้อมข้าวสวยและไข่ดาว",
+        image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80"
+      },
+      {
+        id: 3,
+        name: "ต้มยำกุ้งน้ำข้น",
+        category: "ต้มและแกง",
+        price: 159,
+        desc: "ต้มยำกุ้งรสเข้มข้น หอมตะไคร้ ข่า และใบมะกรูด",
+        image: "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=80"
+      }
+    ];
+
+    const menuGrid = document.getElementById("menuGrid");
+    const searchInput = document.getElementById("searchInput");
+    const emptyMessage = document.getElementById("emptyMessage");
+
+    function renderMenus(keyword = "") {
+      const query = keyword.trim().toLowerCase();
+
+      const filtered = menus.filter(menu =>
+        menu.name.toLowerCase().includes(query) ||
+        menu.category.toLowerCase().includes(query) ||
+        menu.desc.toLowerCase().includes(query)
+      );
+
+      menuGrid.innerHTML = filtered.map(menu => `
+        <article class="card">
+          <a class="food-link"
+             href="food-detail.html?id=${menu.id}"
+             aria-label="ดูรายละเอียด ${menu.name}">
+            <img class="food-image"
+                 src="${menu.image}"
+                 alt="${menu.name}"
+                 loading="lazy">
+          </a>
+
+          <div class="card-body">
+            <span class="category">${menu.category}</span>
+            <h3>${menu.name}</h3>
+            <p>${menu.desc}</p>
+            <div class="price">฿${menu.price}</div>
+          </div>
+        </article>
+      `).join("");
+
+      emptyMessage.hidden = filtered.length !== 0;
+    }
+
+    searchInput.addEventListener("input", event => {
+      renderMenus(event.target.value);
+    });
+
+    renderMenus();
+  </script>
+</body>
+</html>

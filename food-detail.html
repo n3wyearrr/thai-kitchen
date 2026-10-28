@@ -1,0 +1,184 @@
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>รายละเอียดอาหาร | Thai Kitchen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Kanit", sans-serif;
+      background: #fffaf3;
+      color: #30251e;
+    }
+
+    header {
+      padding: 20px 7%;
+      background: white;
+      box-shadow: 0 3px 15px #0000000b;
+    }
+
+    .logo { color: #c65324; font-size: 25px; font-weight: 700; }
+    .logo span { color: #30251e; }
+
+    main { max-width: 1000px; margin: 35px auto; padding: 0 22px; }
+
+    .back {
+      display: inline-block;
+      margin-bottom: 22px;
+      color: #c65324;
+      text-decoration: none;
+    }
+
+    .detail-card {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      padding: 25px;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 8px 30px #0000000b;
+    }
+
+    .food-image {
+      width: 100%;
+      height: 390px;
+      object-fit: cover;
+      border-radius: 15px;
+      background: #f2e5d8;
+    }
+
+    .category {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 20px;
+      color: #b24d23;
+      background: #fff0e3;
+      font-size: 13px;
+    }
+
+    h1 { margin: 15px 0; font-size: 32px; }
+
+    .desc { color: #806f61; line-height: 1.9; }
+
+    .price {
+      margin: 20px 0;
+      color: #c65324;
+      font-size: 30px;
+      font-weight: 600;
+    }
+
+    h3 { margin-top: 25px; }
+
+    .back-button {
+      display: inline-block;
+      margin-top: 18px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      color: white;
+      background: #c65324;
+      text-decoration: none;
+    }
+
+    .back-button:hover { background: #a83f18; }
+
+    footer {
+      margin-top: 50px;
+      padding: 25px;
+      text-align: center;
+      color: white;
+      background: #214d3d;
+    }
+
+    @media (max-width: 700px) {
+      .detail-card { grid-template-columns: 1fr; padding: 16px; }
+      .food-image { height: 260px; }
+      h1 { font-size: 26px; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="logo">🍲 Thai<span>Kitchen</span></div>
+  </header>
+
+  <main>
+    <a class="back" href="index.html">← กลับไปหน้าเมนูอาหาร</a>
+    <div id="detail"></div>
+  </main>
+
+  <footer>Thai Kitchen | © 2026</footer>
+
+  <script>
+    const menus = [
+      {
+        id: 1,
+        name: "ผัดไทยกุ้งสด",
+        category: "อาหารจานเดียว",
+        price: 89,
+        desc: "ผัดไทยเส้นเหนียวนุ่ม หอมซอสมะขาม พร้อมกุ้งสด",
+        image: "https://images.unsplash.com/photo-1559314809-0d155014e29e?auto=format&fit=crop&w=900&q=80",
+        ingredients: "เส้นผัดไทย กุ้งสด ไข่ เต้าหู้ ถั่วงอก และซอสมะขาม"
+      },
+      {
+        id: 2,
+        name: "ข้าวกะเพราไก่ไข่ดาว",
+        category: "อาหารจานเดียว",
+        price: 75,
+        desc: "ไก่ผัดกะเพราหอมกระทะ เสิร์ฟพร้อมข้าวสวยและไข่ดาว",
+        image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80",
+        ingredients: "เนื้อไก่ ใบกะเพรา พริก กระเทียม ข้าวสวย และไข่"
+      },
+      {
+        id: 3,
+        name: "ต้มยำกุ้งน้ำข้น",
+        category: "ต้มและแกง",
+        price: 159,
+        desc: "ต้มยำกุ้งรสเข้มข้น หอมตะไคร้ ข่า และใบมะกรูด",
+        image: "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=80",
+        ingredients: "กุ้ง ตะไคร้ ข่า ใบมะกรูด พริก เห็ด และส่วนผสมน้ำต้มยำ"
+      }
+    ];
+
+    const id = Number(new URLSearchParams(location.search).get("id"));
+    const food = menus.find(menu => menu.id === id);
+    const detail = document.getElementById("detail");
+
+    if (!food) {
+      detail.innerHTML = `
+        <h2>ไม่พบเมนูอาหาร</h2>
+        <a class="back-button" href="index.html">กลับหน้าแรก</a>
+      `;
+    } else {
+      detail.innerHTML = `
+        <article class="detail-card">
+          <img class="food-image" src="${food.image}" alt="${food.name}">
+
+          <section>
+            <span class="category">${food.category}</span>
+            <h1>${food.name}</h1>
+            <p class="desc">${food.desc}</p>
+            <div class="price">฿${food.price}</div>
+
+            <h3>รายละเอียดอาหาร</h3>
+            <p class="desc">${food.desc}</p>
+
+            <h3>ส่วนประกอบ</h3>
+            <p class="desc">${food.ingredients}</p>
+
+            <a class="back-button" href="index.html">
+              ← กลับไปเลือกอาหาร
+            </a>
+          </section>
+        </article>
+      `;
+    }
+  </script>
+</body>
+</html>

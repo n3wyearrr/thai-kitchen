@@ -336,7 +336,12 @@ async function seedInitialMenusSqlite(client: DbClient) {
 // ============================================================================
 
 async function init(): Promise<DbClient> {
-  const pgUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  const pgUrl =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.STORAGE_URL ||
+    process.env.STORAGE_DATABASE_URL ||
+    process.env.STORAGE_POSTGRES_URL;
 
   // 1. ถ้ามี DATABASE_URL หรือ POSTGRES_URL ของ Neon / PostgreSQL (บน Vercel หรือใน .env.local)
   if (pgUrl && (pgUrl.startsWith("postgres://") || pgUrl.startsWith("postgresql://"))) {

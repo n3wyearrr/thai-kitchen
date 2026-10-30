@@ -90,8 +90,9 @@ export default function MerchantTablesPage() {
   // Pre-generate QR map for batch print
   const [qrMap, setQrMap] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (!baseUrl || tables.length === 0) return;
-    const cleanBase = baseUrl.replace(/\/+$/, "");
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const cleanBase = (baseUrl || origin || "").replace(/\/+$/, "");
+    if (!cleanBase || tables.length === 0) return;
     tables.forEach((t) => {
       const url = `${cleanBase}/table/${encodeURIComponent(t.id)}`;
       QRCode.toDataURL(url, {
@@ -316,6 +317,29 @@ export default function MerchantTablesPage() {
             </div>
           </div>
         </header>
+
+        {/* Localhost Warning Banner */}
+        {Boolean(baseUrl && (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1"))) && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-amber-900 text-xs">
+            <div className="mx-auto max-w-[1440px] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>ข้อสังเกต:</strong> QR Code ปัจจุบันถูกสร้างจาก <code>{baseUrl}</code> (มือถือจะไม่สามารถสแกนเข้า localhost ได้โดยตรง)
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsBaseUrlDialogOpen(true)}
+                className="h-7 text-xs bg-white border-amber-300 text-amber-900 hover:bg-amber-100"
+              >
+                <Settings className="h-3 w-3 mr-1" />
+                ตั้งค่า Base URL สำหรับสแกนด้วยมือถือ
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Compact KPI Summary */}
         <div className="border-b border-slate-200/70 bg-white">
@@ -570,9 +594,35 @@ export default function MerchantTablesPage() {
                 type="text"
                 value={tempBaseUrl}
                 onChange={(e) => setTempBaseUrl(e.target.value)}
-                placeholder="เช่น http://192.168.1.10:3000"
+                placeholder="เช่น https://your-app.vercel.app หรือ http://192.168.1.103:3000"
                 className="h-10"
               />
+            </div>
+
+            <div className="pt-1">
+              <p className="text-[11px] text-[#64748B] mb-1.5 font-medium">กดเลือกค่าด่วน:</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTempBaseUrl("http://192.168.1.103:3000")}
+                  className="h-7 text-[11px] px-2.5 bg-slate-50 border-slate-200 text-slate-700"
+                >
+                  📡 ใช้ IP เครื่องคอม (192.168.1.103:3000)
+                </Button>
+                {typeof window !== "undefined" && window.location.origin && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTempBaseUrl(window.location.origin)}
+                    className="h-7 text-[11px] px-2.5 bg-slate-50 border-slate-200 text-slate-700"
+                  >
+                    🌐 ใช้ URL ปัจจุบัน ({window.location.host})
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 

@@ -40,11 +40,13 @@ export function TableQrCard({
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [copied, setCopied] = useState(false);
 
-  const cleanBase = baseUrl.replace(/\/+$/, "");
-  const tableUrl = `${cleanBase}/table/${encodeURIComponent(table.id)}`;
+  const fallbackOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const cleanBase = (baseUrl || fallbackOrigin || "").replace(/\/+$/, "");
+  const tableUrl = cleanBase ? `${cleanBase}/table/${encodeURIComponent(table.id)}` : "";
 
   useEffect(() => {
     let isMounted = true;
+    if (!tableUrl) return;
     QRCode.toDataURL(tableUrl, {
       width: 400,
       margin: 2,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate as globalMutate } from "swr";
@@ -55,6 +55,18 @@ function isOverdue(order: Order, now: number): boolean {
   );
 }
 
+export interface TableOrderGroup {
+  tableId: string;
+  orders: Order[];
+  itemsCount: number;
+  subtotal: number;
+  total: number;
+  earliestCreatedAt: string;
+  latestCreatedAt: string;
+  isOverdue: boolean;
+  maxWaitedMinutes: number;
+}
+
 export default function MerchantPage() {
   const router = useRouter();
 
@@ -102,6 +114,7 @@ export default function MerchantPage() {
   );
 
   const [activeTab, setActiveTab] = useState<"orders" | "stock" | "report">("orders");
+  const [ordersViewMode, setOrdersViewMode] = useState<"table" | "ticket">("table");
 
   // ---- เสียงแจ้งเตือน & ออเดอร์รอนาน ----
   const [now, setNow] = useState(() => Date.now());
@@ -219,8 +232,8 @@ export default function MerchantPage() {
     }
   };
 
-  // Billing Modal State
-  const [billingOrder, setBillingOrder] = useState<Order | null>(null);
+  // Billing Modal State (Supports grouped table or single order)
+  const [billingGroup, setBillingGroup] = useState<TableOrderGroup | null>(null);
   const [cashReceived, setCashReceived] = useState<string>("");
   const [discount, setDiscount] = useState<string>("0");
 
@@ -250,20 +263,43 @@ export default function MerchantPage() {
     }
   };
 
-  const handleOpenBilling = (order: Order) => {
-    setBillingOrder(order);
-    setCashReceived(order.total.toString());
+  const handleOpenTableBilling = (group: TableOrderGroup) => {
+    setBillingGroup(group);
+    setCashReceived(group.total.toString());
     setDiscount("0");
   };
 
+  const handleOpenBilling = (order: Order) => {
+    handleOpenTableBilling({
+      tableId: order.tableId,
+      orders: [order],
+      itemsCount: order.items.reduce((s, i) => s + i.quantity, 0),
+      subtotal: order.subtotal,
+      total: order.total,
+      earliestCreatedAt: order.createdAt,
+      latestCreatedAt: order.createdAt,
+      isOverdue: isOverdue(order, now),
+      maxWaitedMinutes: minutesSince(order.createdAt, now),
+    });
+  };
+
   const handleConfirmPayment = async () => {
-    if (!billingOrder) return;
+    if (!billingGroup) return;
     try {
-      await handleUpdateStatus(billingOrder.id, "PAID");
-      toast.success(`เช็คบิลโต๊ะ ${billingOrder.tableId} เรียบร้อยแล้ว`, {
-        description: `ยอดชำระ ${formatPrice(billingOrder.total)}`,
+      await Promise.all(
+        billingGroup.orders.map((o) =>
+          fetch(`/api/orders/${o.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "PAID" }),
+          })
+        )
+      );
+      toast.success(`เช็คบิลโต๊ะ ${billingGroup.tableId} เรียบร้อยแล้ว`, {
+        description: `ยอดชำระ ${formatPrice(bill.grandTotal)} (${billingGroup.orders.length} บิล)`,
       });
-      setBillingOrder(null);
+      setBillingGroup(null);
+      mutate();
       mutateReport();
     } catch {
       toast.error("เกิดข้อผิดพลาดในการบันทึกการชำระเงิน");
@@ -322,8 +358,59 @@ export default function MerchantPage() {
   const servedCount = orders?.filter((o) => o.status === "SERVED").length || 0;
   const soldOutCount = stockMenus.filter((m) => m.isAvailable === false).length;
 
+  // Group active orders by table
+  const tableGroups = useMemo<TableOrderGroup[]>(() => {
+    if (!orders) return [];
+    const active = orders.filter((o) => o.status !== "PAID");
+    const map = new Map<string, Order[]>();
+    for (const ord of active) {
+      const list = map.get(ord.tableId) ?? [];
+      list.push(ord);
+      map.set(ord.tableId, list);
+    }
+
+    return Array.from(map.entries())
+      .map(([tableId, tOrders]) => {
+        tOrders.sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        let subtotal = 0;
+        let total = 0;
+        let itemsCount = 0;
+        let hasOverdue = false;
+        let maxWait = 0;
+
+        for (const o of tOrders) {
+          subtotal += o.subtotal;
+          total += o.total;
+          itemsCount += o.items.reduce((sum, it) => sum + it.quantity, 0);
+          if (isOverdue(o, now)) hasOverdue = true;
+          const w = minutesSince(o.createdAt, now);
+          if (w > maxWait) maxWait = w;
+        }
+
+        return {
+          tableId,
+          orders: tOrders,
+          itemsCount,
+          subtotal,
+          total,
+          earliestCreatedAt: tOrders[0]?.createdAt ?? new Date().toISOString(),
+          latestCreatedAt: tOrders[tOrders.length - 1]?.createdAt ?? new Date().toISOString(),
+          isOverdue: hasOverdue,
+          maxWaitedMinutes: maxWait,
+        };
+      })
+      .sort((a, b) => {
+        const numA = Number(a.tableId);
+        const numB = Number(b.tableId);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.tableId.localeCompare(b.tableId);
+      });
+  }, [orders, now]);
+
   // Bill calculations
-  const parsedSubtotal = billingOrder ? billingOrder.subtotal : 0;
+  const parsedSubtotal = billingGroup ? billingGroup.total : 0;
   const parsedCash = parseFloat(cashReceived) || 0;
   const parsedDiscount = parseFloat(discount) || 0;
   const bill = calculateBill(parsedSubtotal, parsedCash, parsedDiscount);
@@ -577,9 +664,46 @@ export default function MerchantPage() {
           </section>
         )}
 
-        {/* TAB 1: LIVE KITCHEN & CASHIER ORDERS (KDS GRID) */}
+        {/* TAB 1: LIVE KITCHEN & CASHIER ORDERS */}
         {activeTab === "orders" && (
           <div className="space-y-4">
+            {/* View Switcher Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-[#1E293B]">รายการออเดอร์ในครัว & แคชเชียร์</h2>
+                <Badge variant="outline" className="text-xs font-semibold bg-white">
+                  {tableGroups.length} โต๊ะ ({activeOrders.length} บิล)
+                </Badge>
+              </div>
+
+              {activeOrders.length > 0 && (
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setOrdersViewMode("table")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      ordersViewMode === "table"
+                        ? "bg-white text-[#1B4332] shadow-sm font-bold"
+                        : "text-[#64748B] hover:text-[#1E293B]"
+                    }`}
+                  >
+                    📍 รวมตามโต๊ะ ({tableGroups.length} โต๊ะ)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrdersViewMode("ticket")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      ordersViewMode === "ticket"
+                        ? "bg-white text-[#1B4332] shadow-sm font-bold"
+                        : "text-[#64748B] hover:text-[#1E293B]"
+                    }`}
+                  >
+                    📄 แยกตามบิล ({activeOrders.length} บิล)
+                  </button>
+                </div>
+              )}
+            </div>
+
             {activeOrders.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-3 shadow-sm">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-[#1B4332]">
@@ -599,7 +723,190 @@ export default function MerchantPage() {
                   </Link>
                 </div>
               </div>
+            ) : ordersViewMode === "table" ? (
+              /* TABLE VIEW: Grouped by Table */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {tableGroups.map((group) => (
+                  <Card
+                    key={group.tableId}
+                    className={`flex flex-col justify-between rounded-2xl bg-white overflow-hidden transition-all ${
+                      group.isOverdue
+                        ? "border-red-300 ring-1 ring-red-200/80 shadow-md"
+                        : "border-slate-200/80 shadow-sm hover:shadow-md"
+                    }`}
+                  >
+                    <div>
+                      {/* Card Header: Table Number & Summary */}
+                      <div
+                        className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
+                          group.isOverdue
+                            ? "bg-red-50/70 border-red-200/70"
+                            : "bg-slate-50/70 border-slate-200/70"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="flex h-9 min-w-[36px] px-2 items-center justify-center rounded-xl bg-[#1B4332] text-white font-bold text-base shadow-sm">
+                            {group.tableId}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-base text-[#1E293B]">
+                                โต๊ะ {group.tableId}
+                              </span>
+                              {group.orders.length > 1 && (
+                                <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                                  {group.orders.length} รอบสั่ง
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 text-[11px] text-[#64748B]">
+                              <Clock className="h-3 w-3" aria-hidden="true" />
+                              <span>
+                                ล่าสุด{" "}
+                                {new Date(group.latestCreatedAt).toLocaleTimeString("th-TH", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              group.isOverdue
+                                ? "bg-red-100 text-red-700 border border-red-200"
+                                : "bg-slate-100 text-[#64748B]"
+                            }`}
+                          >
+                            {group.isOverdue && <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />}
+                            <span>รอ {group.maxWaitedMinutes} นาที</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Orders Items: Segmented by round if multiple */}
+                      <div className="p-3.5 space-y-3">
+                        {group.orders.map((ord, roundIdx) => (
+                          <div
+                            key={ord.id}
+                            className={`rounded-xl border p-2.5 space-y-2 ${
+                              group.orders.length > 1
+                                ? "bg-slate-50/60 border-slate-200/80"
+                                : "bg-transparent border-transparent p-0"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between text-xs pb-1 border-b border-slate-200/60">
+                              <div className="flex items-center gap-1.5 font-semibold text-[#1E293B]">
+                                {group.orders.length > 1 && (
+                                  <span className="bg-[#1B4332] text-white px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                    รอบที่ {roundIdx + 1}
+                                  </span>
+                                )}
+                                <span className="text-xs text-[#1E293B]">#{ord.id}</span>
+                                <span className="text-[11px] font-normal text-[#64748B]">
+                                  ({new Date(ord.createdAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })})
+                                </span>
+                              </div>
+                              {getStatusBadge(ord.status)}
+                            </div>
+
+                            <div className="divide-y divide-slate-100 max-h-52 overflow-y-auto pr-0.5">
+                              {ord.items.map((item, idx) => {
+                                const opts = describeOptions(item);
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="flex items-start justify-between gap-2 py-1.5 first:pt-0 last:pb-0 text-xs"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-baseline gap-1.5">
+                                        <span className="inline-flex h-4 min-w-[18px] items-center justify-center rounded bg-slate-200/80 px-1 text-[10px] font-bold text-[#1E293B]">
+                                          x{item.quantity}
+                                        </span>
+                                        <span className="font-semibold text-[#1E293B] text-xs leading-snug">
+                                          {item.name}
+                                        </span>
+                                      </div>
+                                      {opts.length > 0 && (
+                                        <p className="text-[10px] font-medium text-[#EA580C] pl-5 mt-0.5">
+                                          {opts.join(" · ")}
+                                        </p>
+                                      )}
+                                      {item.note && (
+                                        <p className="text-[10px] text-amber-700 bg-amber-50/80 rounded px-1.5 py-0.5 mt-0.5 ml-5 inline-block">
+                                          โน้ต: {item.note}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <span className="font-medium text-[#64748B] shrink-0 text-xs">
+                                      {formatPrice(item.price * item.quantity)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Round Status Switch */}
+                            <div
+                              className="grid grid-cols-3 gap-1 rounded-lg bg-white p-1 border border-slate-200/80 mt-1.5"
+                              role="group"
+                              aria-label={`เปลี่ยนสถานะรอบ ${ord.id}`}
+                            >
+                              {(
+                                [
+                                  { status: "PENDING", label: "รับออเดอร์" },
+                                  { status: "COOKING", label: "กำลังปรุง" },
+                                  { status: "SERVED", label: "พร้อมเสิร์ฟ" },
+                                ] as { status: OrderStatus; label: string }[]
+                              ).map((step) => {
+                                const active = ord.status === step.status;
+                                return (
+                                  <button
+                                    key={step.status}
+                                    type="button"
+                                    onClick={() => handleUpdateStatus(ord.id, step.status)}
+                                    className={`h-6 rounded text-[10px] font-semibold transition-all ${
+                                      active
+                                        ? "bg-[#1B4332] text-white shadow-sm font-bold"
+                                        : "text-[#64748B] hover:text-[#1E293B]"
+                                    }`}
+                                  >
+                                    {step.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Table Card Footer */}
+                    <div className="p-4 pt-0 space-y-2.5 border-t border-slate-100 mt-2">
+                      <div className="flex items-baseline justify-between pt-2">
+                        <span className="text-xs font-medium text-[#64748B]">
+                          ยอดรวมทั้งโต๊ะ ({group.itemsCount} รายการ)
+                        </span>
+                        <span className="text-xl font-bold text-[#EA580C]">
+                          {formatPrice(group.total)}
+                        </span>
+                      </div>
+
+                      <Button
+                        onClick={() => handleOpenTableBilling(group)}
+                        className="w-full h-10 rounded-xl bg-[#1B4332] hover:bg-[#143325] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <Calculator className="h-4 w-4" aria-hidden="true" />
+                        <span>คิดเงิน / เช็คบิลโต๊ะ {group.tableId} ({formatPrice(group.total)})</span>
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
             ) : (
+              /* TICKET VIEW: Individual Orders */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {activeOrders.map((order) => {
                   const overdue = isOverdue(order, now);
@@ -613,7 +920,6 @@ export default function MerchantPage() {
                           : "border-slate-200/80 shadow-sm hover:shadow-md"
                       }`}
                     >
-                      {/* KDS Card Header: Table - Wait Time - Status */}
                       <div>
                         <div
                           className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
@@ -664,7 +970,6 @@ export default function MerchantPage() {
                           </div>
                         </div>
 
-                        {/* KDS Order Items List */}
                         <div className="p-4 space-y-2.5">
                           <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto pr-0.5">
                             {order.items.map((item, idx) => {
@@ -704,7 +1009,6 @@ export default function MerchantPage() {
                         </div>
                       </div>
 
-                      {/* KDS Card Footer: Total + Segmented Status Control + Checkout CTA */}
                       <div className="p-4 pt-0 space-y-2.5">
                         <div className="flex items-baseline justify-between border-t border-slate-200/70 pt-2.5">
                           <span className="text-xs font-medium text-[#64748B]">
@@ -715,7 +1019,6 @@ export default function MerchantPage() {
                           </span>
                         </div>
 
-                        {/* Segmented Status Switch */}
                         <div
                           className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1"
                           role="group"
@@ -736,7 +1039,7 @@ export default function MerchantPage() {
                                 onClick={() => handleUpdateStatus(order.id, step.status)}
                                 className={`h-7 rounded-lg text-[11px] font-semibold transition-all ${
                                   active
-                                    ? "bg-white text-[#1B4332] shadow-sm"
+                                    ? "bg-white text-[#1B4332] shadow-sm font-bold"
                                     : "text-[#64748B] hover:text-[#1E293B]"
                                 }`}
                               >
@@ -746,7 +1049,6 @@ export default function MerchantPage() {
                           })}
                         </div>
 
-                        {/* Checkout Button */}
                         <Button
                           onClick={() => handleOpenBilling(order)}
                           className="w-full h-9 rounded-xl bg-[#1B4332] hover:bg-[#143325] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm"
@@ -926,7 +1228,7 @@ export default function MerchantPage() {
       </main>
 
       {/* POS Cashier Checkout Modal */}
-      <Dialog open={Boolean(billingOrder)} onOpenChange={(open) => !open && setBillingOrder(null)}>
+      <Dialog open={Boolean(billingGroup)} onOpenChange={(open) => !open && setBillingGroup(null)}>
         <DialogContent className="max-w-md p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xl">
           <DialogHeader className="border-b border-slate-200/70 pb-3">
             <div className="flex items-center gap-1.5 text-[#1B4332] font-semibold text-xs">
@@ -934,17 +1236,33 @@ export default function MerchantPage() {
               <span>POS CASHIER CHECKOUT</span>
             </div>
             <DialogTitle className="text-xl font-bold text-[#1E293B]">
-              คิดเงิน โต๊ะ {billingOrder?.tableId}{" "}
-              <span className="text-xs font-normal text-[#64748B]">({billingOrder?.id})</span>
+              คิดเงิน โต๊ะ {billingGroup?.tableId}{" "}
+              <span className="text-xs font-normal text-[#64748B]">
+                ({billingGroup?.orders.length === 1 ? billingGroup?.orders[0].id : `${billingGroup?.orders.length} รอบสั่ง`})
+              </span>
             </DialogTitle>
           </DialogHeader>
 
-          {billingOrder && (
+          {billingGroup && (
             <div className="space-y-4 pt-1">
               {/* Order Summary Breakdown */}
               <div className="rounded-xl bg-slate-50/90 p-4 space-y-2.5 border border-slate-200/70">
+                {billingGroup.orders.length > 1 && (
+                  <div className="space-y-1.5 pb-2.5 border-b border-slate-200/80 text-xs">
+                    <div className="text-[11px] font-semibold text-[#1E293B] mb-1">แยกตามรอบสั่งอาหาร:</div>
+                    {billingGroup.orders.map((ord, idx) => (
+                      <div key={ord.id} className="flex justify-between text-[#64748B] pl-1">
+                        <span>
+                          รอบที่ {idx + 1} (#{ord.id}) · {ord.items.reduce((s, i) => s + i.quantity, 0)} รายการ
+                        </span>
+                        <span className="font-semibold text-[#1E293B]">{formatPrice(ord.total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="flex justify-between text-xs text-[#64748B]">
-                  <span>ยอดรวมค่าอาหาร ({billingOrder.items.reduce((s, i) => s + i.quantity, 0)} รายการ)</span>
+                  <span>ยอดรวมค่าอาหารทั้งหมด ({billingGroup.itemsCount} รายการ)</span>
                   <span className="font-semibold text-[#1E293B]">{formatPrice(bill.subtotal)}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-[#64748B]">
@@ -1038,7 +1356,7 @@ export default function MerchantPage() {
               <div className="flex gap-2.5 pt-1">
                 <Button
                   variant="outline"
-                  onClick={() => setBillingOrder(null)}
+                  onClick={() => setBillingGroup(null)}
                   className="rounded-xl h-11 flex-1 font-medium"
                 >
                   ยกเลิก
@@ -1048,7 +1366,7 @@ export default function MerchantPage() {
                   disabled={bill.cashReceived < bill.grandTotal}
                   className="rounded-xl h-11 flex-[1.5] bg-[#1B4332] hover:bg-[#143325] text-white font-semibold"
                 >
-                  ยืนยันรับเงิน & ปิดบิลโต๊ะ {billingOrder.tableId}
+                  ยืนยันรับเงิน & ปิดบิลโต๊ะ {billingGroup.tableId}
                 </Button>
               </div>
             </div>

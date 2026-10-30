@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ScanLine, UtensilsCrossed, BellRing, Smartphone, ArrowRight, Sparkles, Store } from "lucide-react";
+import { ScanLine, UtensilsCrossed, BellRing, Smartphone, ArrowRight, Sparkles } from "lucide-react";
 import { menus } from "@/data/menus";
 import { formatPrice } from "@/lib/utils";
 
@@ -39,13 +39,6 @@ export default function HomePage() {
               className="text-xs sm:text-sm font-medium text-[#1E293B] hover:text-[#1B4332] transition-colors"
             >
               เมนูอาหารทั้งหมด
-            </Link>
-            <Link
-              href="/merchant"
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-50 px-3.5 py-1.5 text-xs font-medium text-[#64748B] hover:border-slate-300 hover:text-[#1E293B] transition-colors"
-            >
-              <Store className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>ระบบหลังบ้าน POS</span>
             </Link>
           </div>
         </div>
@@ -239,12 +232,6 @@ export default function HomePage() {
           <div className="flex items-center gap-5">
             <Link href="/menu" className="hover:text-[#1E293B] transition-colors">
               เมนูทั้งหมด
-            </Link>
-            <Link href="/merchant/tables" className="hover:text-[#1E293B] transition-colors">
-              จัดการ QR โต๊ะ
-            </Link>
-            <Link href="/merchant" className="hover:text-[#1E293B] transition-colors">
-              แคชเชียร์ & ห้องครัว (POS)
             </Link>
           </div>
         </div>

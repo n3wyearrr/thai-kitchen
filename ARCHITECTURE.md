@@ -50,9 +50,10 @@ flowchart TD
 - **Styling & UI:** Tailwind CSS + **shadcn/ui**
 - **Icons:** Lucide React
 - **Client State & Sync:** SWR หรือ React Query สำหรับ Polling / Data Revalidation แบบเรียลไทม์ (หรือ Server-Sent Events สำหรับ Instant Push)
-- **Storage Layer (MVP):**
-  - **Menu:** ไฟล์ `src/data/menus.ts` (Typed Static Data)
-  - **Table Carts & Orders:** In-Memory Cache Store หรือ Database (เช่น SQLite / Prisma / Redis) โดยแยก Session ตาม `tableId`
+- **Storage Layer (Production & Serverless):**
+  - **Database:** PostgreSQL บน **Neon Serverless** (`@neondatabase/serverless`) เชื่อมต่อผ่าน Vercel Integration / `DATABASE_URL`
+  - **Auto-migration & Seeding:** ระบบสร้างตารางอัตโนมัติ (`menus`, `restaurant_tables`, `table_carts`, `orders`, `service_calls`) พร้อม seed เมนูตั้งต้น
+  - **Local Fallback:** รองรับ SQLite ในเครื่องกรณีรัน offline หรือยังไม่ได้เชื่อมต่อ Neon Cloud
 
 ---
 
@@ -71,11 +72,18 @@ thai-kitchen/
 │   │   │           └── page.tsx      # หน้าติดตามสถานะออเดอร์ของโต๊ะ
 │   │   ├── merchant/
 │   │   │   ├── page.tsx              # แดชบอร์ดแม่ค้า (สรุปออเดอร์ + คิดเงิน)
+│   │   │   ├── tables/
+│   │   │   │   └── page.tsx          # หน้าจัดการโต๊ะ & สร้าง QR Code ให้ลูกค้าสแกน
 │   │   │   └── login/
 │   │   │       └── page.tsx          # หน้าจอเข้าสู่ระบบ POS ด้วย PIN Keypad
+│   │   ├── admin/
+│   │   │   └── tables/page.tsx       # Alias route สำหรับจัดการโต๊ะ & QR Code
 │   │   ├── api/
 │   │   │   ├── auth/
 │   │   │   │   └── route.ts          # Session authentication (GET, POST, DELETE)
+│   │   │   ├── tables/
+│   │   │   │   ├── route.ts          # GET (รายการโต๊ะพร้อมสถิติสด), POST (เพิ่มโต๊ะ)
+│   │   │   │   └── [id]/route.ts     # PATCH (แก้ไขโต๊ะ), DELETE (ลบโต๊ะ)
 │   │   │   ├── table/
 │   │   │   │   └── [tableId]/
 │   │   │   │       └── cart/

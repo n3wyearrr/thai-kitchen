@@ -1,22 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrders, createOrder } from "@/lib/store";
+import { getOrders, createOrderFromCart } from "@/lib/store";
+import { badTable, isMerchantSession, isValidTableId, unauthorized } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
+/** รายการออเดอร์ทั้งหมด สำหรับแม่ค้าเท่านั้น */
 export async function GET() {
-  const orders = getOrders();
-  return NextResponse.json(orders);
+  if (!isMerchantSession()) return unauthorized();
+  return NextResponse.json(await getOrders());
 }
 
+/** ลูกค้าส่งออเดอร์: เซิร์ฟเวอร์ใช้ตะกร้าของโต๊ะที่เก็บไว้ ไม่รับรายการหรือราคาจาก client */
 export async function POST(request: NextRequest) {
   try {
-    const { tableId, items } = await request.json();
-    if (!tableId || !items || !items.length) {
-      return NextResponse.json({ error: "Missing tableId or items" }, { status: 400 });
+    const { tableId } = (await request.json()) as { tableId?: string };
+    if (!tableId || !isValidTableId(tableId)) return badTable();
+
+    const order = await createOrderFromCart(tableId);
+    if (!order) {
+      return NextResponse.json({ error: "ตะกร้าว่าง ไม่มีรายการให้สั่ง" }, { status: 400 });
     }
-    const order = createOrder(tableId, items);
     return NextResponse.json(order, { status: 201 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
   }
 }

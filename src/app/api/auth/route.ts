@@ -1,69 +1,71 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { createSessionToken, verifySessionToken, SessionUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-// Single merchant account
-const VALID_CREDENTIALS = {
-  usernames: ["admin", "merchant", "แม่ค้า"],
-  passwords: ["1234", "admin1234"],
-  user: {
-    name: "แม่ค้า",
-    role: "เจ้าของร้าน",
-  },
-};
+const MERCHANT_USER: SessionUser = { name: "แม่ค้า", role: "เจ้าของร้าน" };
+
+/**
+ * บัญชีแม่ค้า: บน production ต้องตั้ง MERCHANT_USERNAME / MERCHANT_PASSWORD เอง
+ * ตอนพัฒนาใช้ admin / 1234 ได้เพื่อความสะดวก
+ */
+function getCredentials(): { username: string; password: string } | null {
+  const username = process.env.MERCHANT_USERNAME;
+  const password = process.env.MERCHANT_PASSWORD;
+  if (username && password) return { username, password };
+  if (process.env.NODE_ENV !== "production") return { username: "admin", password: "1234" };
+  return null;
+}
 
 export async function GET() {
-  const cookieStore = cookies();
-  const session = cookieStore.get("pos_session");
-
-  if (!session || !session.value) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
-  }
-
-  try {
-    const data = JSON.parse(session.value);
-    return NextResponse.json({ authenticated: true, user: data });
-  } catch {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
-  }
+  const user = verifySessionToken(cookies().get("pos_session")?.value);
+  if (!user) return NextResponse.json({ authenticated: false }, { status: 401 });
+  return NextResponse.json({ authenticated: true, user });
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { username, password } = body;
+    const { username, password } = (await request.json()) as {
+      username?: string;
+      password?: string;
+    };
 
-    const normalizedUsername = username?.trim()?.toLowerCase();
-
-    const isUsernameValid = VALID_CREDENTIALS.usernames.some(
-      (u) => u.toLowerCase() === normalizedUsername
-    );
-    const isPasswordValid = VALID_CREDENTIALS.passwords.includes(password);
-
-    if (!isUsernameValid || !isPasswordValid) {
+    const creds = getCredentials();
+    if (!creds) {
       return NextResponse.json(
-        { error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง (ลองใช้: admin / 1234)" },
-        { status: 401 }
+        { error: "ระบบยังไม่ได้ตั้งค่าบัญชีแม่ค้า (MERCHANT_USERNAME / MERCHANT_PASSWORD)" },
+        { status: 500 }
       );
     }
 
-    const user = VALID_CREDENTIALS.user;
+    const valid =
+      username?.trim().toLowerCase() === creds.username.toLowerCase() &&
+      password === creds.password;
+    if (!valid) {
+      return NextResponse.json({ error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" }, { status: 401 });
+    }
 
-    // Set HTTP-only session cookie
-    const response = NextResponse.json({ success: true, user });
+    const token = createSessionToken(MERCHANT_USER);
+    if (!token) {
+      return NextResponse.json(
+        { error: "ระบบยังไม่ได้ตั้งค่า SESSION_SECRET" },
+        { status: 500 }
+      );
+    }
+
+    const response = NextResponse.json({ success: true, user: MERCHANT_USER });
     response.cookies.set({
       name: "pos_session",
-      value: JSON.stringify(user),
+      value: token,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 12, // 12 hours
+      maxAge: 60 * 60 * 12,
     });
-
     return response;
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "เข้าสู่ระบบไม่สำเร็จ" }, { status: 500 });
   }
 }

@@ -17,6 +17,11 @@ const config: Config = {
           hover: "var(--primary-hover)",
           foreground: "var(--primary-foreground)",
         },
+        accent: {
+          DEFAULT: "var(--accent)",
+          hover: "var(--accent-hover)",
+          foreground: "var(--accent-foreground)",
+        },
         card: {
           DEFAULT: "var(--card)",
           foreground: "var(--card-foreground)",
@@ -30,7 +35,8 @@ const config: Config = {
         accentGreen: "var(--accent-green)",
       },
       fontFamily: {
-        kanit: ["var(--font-kanit)", "sans-serif"],
+        kanit: ["var(--font-prompt)", "var(--font-kanit)", "sans-serif"],
+        sans: ["var(--font-prompt)", "var(--font-kanit)", "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",

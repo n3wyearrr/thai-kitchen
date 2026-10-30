@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
-import { Kanit } from "next/font/google";
+import { Prompt, Kanit } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
+
+const prompt = Prompt({
+  subsets: ["thai", "latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-prompt",
+});
 
 const kanit = Kanit({
   subsets: ["thai", "latin"],
@@ -10,8 +16,8 @@ const kanit = Kanit({
 });
 
 export const metadata: Metadata = {
-  title: "Thai Kitchen | 🍲 Smart Dine-in & POS",
-  description: "ระบบสั่งอาหารไทยสำหรับนั่งทานในร้าน ตะกร้าร่วมประจำโต๊ะ และแดชบอร์ดแม่ค้า",
+  title: "Chanon Thai Kitchen | สั่งอาหารผ่าน QR ประจำโต๊ะ",
+  description: "ระบบสั่งอาหารไทยสำหรับนั่งทานในร้าน ตะกร้าร่วมประจำโต๊ะ และแดชบอร์ดจัดการร้าน POS",
 };
 
 export default function RootLayout({
@@ -20,8 +26,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="th" className={kanit.variable}>
-      <body className="font-kanit min-h-screen bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
+    <html lang="th" className={`${prompt.variable} ${kanit.variable}`}>
+      <body className="font-sans min-h-screen bg-[#FAFAF9] text-[#1E293B] antialiased selection:bg-[#1B4332]/15 selection:text-[#1B4332]">
         {children}
         <Toaster position="top-center" richColors />
       </body>
